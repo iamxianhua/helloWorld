@@ -12,6 +12,7 @@ const api = axios.create({
 export const roomAPI = {
   getAllRooms: () => api.get('/rooms'),
   getAvailableRooms: () => api.get('/rooms/available'),
+  getDailyStatus: () => api.get('/rooms/daily-status'),
   getRoomById: (id) => api.get(`/rooms/${id}`),
   createRoom: (data) => api.post('/rooms', data),
   updateRoom: (id, data) => api.put(`/rooms/${id}`, data),

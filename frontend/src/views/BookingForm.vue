@@ -1,6 +1,6 @@
 <template>
   <div class="booking-form">
-    <h2 style="margin-bottom: 1.5rem; color: #333;">预定会议室</h2>
+    <h2 style="margin-bottom: 1.5rem; color: #333;">申请会议室</h2>
 
     <div v-if="loading" class="loading">
       加载中...
@@ -14,19 +14,19 @@
       <div v-if="room" class="room-info" style="margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 2px solid #f0f0f0;">
         <h3>{{ room.roomName }}</h3>
         <div class="info-item">
-          <strong>位置:</strong> {{ room.location || '未指定' }}
+          <strong>位置:</strong> {{ room.location }}
         </div>
         <div class="info-item">
           <strong>容量:</strong> {{ room.capacity }} 人
         </div>
         <div class="info-item">
-          <strong>设施:</strong> {{ room.facilities || '无' }}
+          <strong>设施:</strong> {{ room.facilities }}
         </div>
       </div>
 
       <form @submit.prevent="handleSubmit">
         <div class="form-group">
-          <label for="userName">姓名 *</label>
+          <label for="userName">申请人姓名 *</label>
           <input
             id="userName"
             v-model="formData.userName"
@@ -48,23 +48,49 @@
         </div>
 
         <div class="form-group">
-          <label for="startTime">开始时间 *</label>
+          <label for="date">日期 *</label>
           <input
-            id="startTime"
-            v-model="formData.startTime"
-            type="datetime-local"
+            id="date"
+            v-model="formData.date"
+            type="date"
             required
           />
         </div>
 
+        <div class="form-row">
+          <div class="form-group" style="flex: 1;">
+            <label for="startTime">开始时间 *</label>
+            <input
+              id="startTime"
+              v-model="formData.startTime"
+              type="time"
+              required
+            />
+          </div>
+
+          <div class="form-group" style="flex: 1;">
+            <label for="endTime">结束时间 *</label>
+            <input
+              id="endTime"
+              v-model="formData.endTime"
+              type="time"
+              required
+            />
+          </div>
+        </div>
+
         <div class="form-group">
-          <label for="endTime">结束时间 *</label>
+          <label for="attendeeCount">参加人数 *</label>
           <input
-            id="endTime"
-            v-model="formData.endTime"
-            type="datetime-local"
+            id="attendeeCount"
+            v-model.number="formData.attendeeCount"
+            type="number"
             required
+            min="1"
+            :max="room?.capacity"
+            placeholder="请输入参加人数"
           />
+          <small style="color: #666;">该会议室最多可容纳 {{ room?.capacity }} 人</small>
         </div>
 
         <div class="form-group">
@@ -72,9 +98,19 @@
           <textarea
             id="purpose"
             v-model="formData.purpose"
-            rows="4"
+            rows="3"
             placeholder="请简要描述会议目的（可选）"
           ></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              v-model="formData.needsRefreshments"
+            />
+            需要茶水或矿泉水
+          </label>
         </div>
 
         <div v-if="submitError" class="error">
@@ -82,12 +118,12 @@
         </div>
 
         <div v-if="submitSuccess" class="success">
-          预定成功！
+          申请提交成功！正在跳转...
         </div>
 
         <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
           <button type="submit" class="btn btn-primary" :disabled="submitting">
-            {{ submitting ? '提交中...' : '确认预定' }}
+            {{ submitting ? '提交中...' : '提交申请' }}
           </button>
           <router-link to="/rooms">
             <button type="button" class="btn btn-secondary">
@@ -118,9 +154,12 @@ const submitSuccess = ref(false)
 const formData = ref({
   userName: '',
   userEmail: '',
+  date: '',
   startTime: '',
   endTime: '',
-  purpose: ''
+  attendeeCount: '',
+  purpose: '',
+  needsRefreshments: false
 })
 
 const loadRoom = async () => {
@@ -143,24 +182,36 @@ const handleSubmit = async () => {
     submitError.value = null
     submitSuccess.value = false
 
+    // 验证参加人数
+    if (formData.value.attendeeCount > room.value.capacity) {
+      submitError.value = `参加人数不能超过会议室容量（${room.value.capacity}人）`
+      return
+    }
+
+    // 组合日期和时间
+    const startDateTime = `${formData.value.date}T${formData.value.startTime}:00`
+    const endDateTime = `${formData.value.date}T${formData.value.endTime}:00`
+
     const bookingData = {
       meetingRoom: { id: room.value.id },
       userName: formData.value.userName,
       userEmail: formData.value.userEmail,
-      startTime: formData.value.startTime,
-      endTime: formData.value.endTime,
+      startTime: startDateTime,
+      endTime: endDateTime,
       purpose: formData.value.purpose,
-      status: 'CONFIRMED'
+      attendeeCount: formData.value.attendeeCount,
+      needsRefreshments: formData.value.needsRefreshments,
+      status: 'PENDING' // 正在申请状态
     }
 
     await bookingAPI.createBooking(bookingData)
     submitSuccess.value = true
 
     setTimeout(() => {
-      router.push('/my-bookings')
+      router.push('/applications')
     }, 1500)
   } catch (err) {
-    submitError.value = err.response?.data || '预定失败，请检查时间是否冲突或稍后重试'
+    submitError.value = err.response?.data || '申请失败，请检查时间是否冲突或稍后重试'
     console.error('Error creating booking:', err)
   } finally {
     submitting.value = false
@@ -169,6 +220,9 @@ const handleSubmit = async () => {
 
 onMounted(() => {
   loadRoom()
+  // 设置默认日期为今天
+  const today = new Date().toISOString().split('T')[0]
+  formData.value.date = today
 })
 </script>
 
@@ -188,8 +242,32 @@ onMounted(() => {
   }
 }
 
+.form-row {
+  display: flex;
+  gap: 1rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: normal;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  cursor: pointer;
+}
+
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .form-row {
+    flex-direction: column;
+  }
 }
 </style>
